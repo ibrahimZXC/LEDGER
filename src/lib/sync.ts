@@ -127,11 +127,16 @@ export async function loadAllFromSupabase(): Promise<{
     supabase.from("settings").select("*").eq("id", "default").maybeSingle(),
   ]);
 
-  if (entitiesRes.error) console.error("[sync] load entities:", entitiesRes.error.message);
-  if (vaultsRes.error) console.error("[sync] load vaults:", vaultsRes.error.message);
-  if (transactionsRes.error)
-    console.error("[sync] load transactions:", transactionsRes.error.message);
-  if (settingsRes.error) console.error("[sync] load settings:", settingsRes.error.message);
+  // If any table query failed (e.g. tables don't exist), return null
+  // so the store keeps its existing localStorage data instead of overwriting with empty.
+  if (entitiesRes.error || vaultsRes.error || transactionsRes.error) {
+    if (entitiesRes.error) console.error("[sync] load entities:", entitiesRes.error.message);
+    if (vaultsRes.error) console.error("[sync] load vaults:", vaultsRes.error.message);
+    if (transactionsRes.error)
+      console.error("[sync] load transactions:", transactionsRes.error.message);
+    if (settingsRes.error) console.error("[sync] load settings:", settingsRes.error.message);
+    return null;
+  }
 
   const data: AppData = {
     entities: (entitiesRes.data as EntityRow[] | null)?.map(rowToEntity) ?? [],
