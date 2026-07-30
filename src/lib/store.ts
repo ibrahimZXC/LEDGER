@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import type { AppData, Entity, ThemeMode, Transaction, Vault } from "@/types";
 import type { Lang } from "@/lib/i18n";
 import { entityDelta, vaultDelta } from "@/lib/ledger";
@@ -58,171 +57,205 @@ const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(
 /** True when Supabase is configured and sync should fire. */
 const syncOn = () => isSupabaseConfigured;
 
-export const useApp = create<State>()(
-  persist(
-    (set, get) => ({
-      entities: DEMO_DATA.entities,
-      vaults: DEMO_DATA.vaults,
-      transactions: DEMO_DATA.transactions,
-      lang: "ar",
-      theme: defaultTheme,
-      brand: { name: "", logo: "" },
-      hydrated: false,
+// ── Manual localStorage persistence (bypasses zustand persist middleware issues with SSR) ──
 
-      loadFromSupabase: async () => {
-        if (!isSupabaseConfigured) return;
-        const result = await loadAllFromSupabase();
-        if (!result) return;
-        // Only overwrite local data if Supabase actually has data.
-        // This prevents empty Supabase tables from wiping localStorage data.
-        const hasData =
-          result.data.entities.length > 0 ||
-          result.data.vaults.length > 0 ||
-          result.data.transactions.length > 0;
-        if (hasData) {
-          set({
-            entities: result.data.entities,
-            vaults: result.data.vaults,
-            transactions: result.data.transactions,
-          });
-          if (result.settings) {
-            set({
-              lang: result.settings.lang as Lang,
-              theme: result.settings.theme as ThemeMode,
-              brand: result.settings.brand,
-            });
-          }
-        }
-        // Always mark as hydrated so we don't keep trying on every render
-        set({ hydrated: true });
-      },
+const STORAGE_KEY = "biz-ledger-v1";
 
-      setBrand: (patch) => {
-        set((s) => ({ brand: { ...s.brand, ...patch } }));
-        if (syncOn()) {
-          const s = get();
-          syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
-        }
-      },
-      setLang: (lang) => {
-        set({ lang });
-        if (syncOn()) {
-          const s = get();
-          syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
-        }
-      },
-      setTheme: (theme) => {
-        set({ theme });
-        if (syncOn()) {
-          const s = get();
-          syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
-        }
-      },
+/** Load saved state from localStorage at module init. */
+function loadSavedState(): Partial<AppData & { lang: Lang; theme: ThemeMode; brand: Brand }> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    // Accept version 5 or unversioned data
+    const state = parsed.version === 5 ? parsed.state : parsed;
+    if (state) {
+      if (typeof state.theme !== "string") state.theme = defaultTheme;
+      if (!state.brand) state.brand = { name: "", logo: "" };
+      return state;
+    }
+  } catch {
+    // localStorage unavailable or corrupt — ignore
+  }
+  return {};
+}
 
-      addEntity: (e) => {
-        const entity: Entity = { ...e, id: uid(), createdAt: new Date().toISOString() };
-        set((s) => ({ entities: [...s.entities, entity] }));
-        if (syncOn()) syncEntityInsert(entity);
-        return entity;
-      },
-      updateEntity: (id, patch) => {
-        set((s) => ({
-          entities: s.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
-        }));
-        if (syncOn()) syncEntityUpdate(id, patch);
-      },
-      deleteEntity: (id) => {
-        set((s) => ({
-          entities: s.entities.filter((e) => e.id !== id),
-          transactions: s.transactions.filter((t) => t.entityId !== id),
-        }));
-        if (syncOn()) syncEntityDelete(id);
-      },
+const saved = loadSavedState();
 
-      addVault: (name, balance = 0) => {
-        const vault: Vault = { id: uid(), name, balance };
-        set((s) => ({ vaults: [...s.vaults, vault] }));
-        if (syncOn()) syncVaultInsert(vault);
-        return vault;
-      },
-      updateVault: (id, patch) => {
-        set((s) => ({ vaults: s.vaults.map((v) => (v.id === id ? { ...v, ...patch } : v)) }));
-        if (syncOn()) syncVaultUpdate(id, patch);
-      },
-      deleteVault: (id) => {
-        set((s) => ({ vaults: s.vaults.filter((v) => v.id !== id) }));
-        if (syncOn()) syncVaultDelete(id);
-      },
-
-      addTransaction: (t) => {
-        const tx: Transaction = { ...t, id: uid() };
-        set((s) => ({ transactions: [...s.transactions, tx] }));
-        if (syncOn()) syncTransactionInsert(tx);
-        return tx;
-      },
-      updateTransaction: (id, patch) => {
-        set((s) => ({
-          transactions: s.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
-        }));
-        if (syncOn()) syncTransactionUpdate(id, patch);
-      },
-      deleteTransaction: (id) => {
-        set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
-        if (syncOn()) syncTransactionDelete(id);
-      },
-      deleteTransactions: (ids) => {
-        set((s) => ({ transactions: s.transactions.filter((t) => !ids.includes(t.id)) }));
-        if (syncOn()) syncTransactionsDelete(ids);
-      },
-
-      replaceAll: (data) => {
-        set({
-          entities: data.entities ?? [],
-          vaults: data.vaults ?? [],
-          transactions: data.transactions ?? [],
-        });
-        if (syncOn()) syncReplaceAll(data);
-      },
-
-      loadDemoData: () => {
-        set({
-          entities: DEMO_DATA.entities,
-          vaults: DEMO_DATA.vaults,
-          transactions: DEMO_DATA.transactions,
-        });
-        if (syncOn()) syncReplaceAll(DEMO_DATA);
-      },
-      clearAllData: () => {
-        const empty: AppData = {
-          entities: [],
-          vaults: [{ id: "main", name: "Main Cash", balance: 0 }],
-          transactions: [],
-        };
-        set(empty);
-        if (syncOn()) syncReplaceAll(empty);
-      },
-    }),
-    {
-      name: "biz-ledger-v1",
-      version: 5,
-      migrate: (state) => {
-        const s = state as State;
-        if (s && typeof s.theme !== "string") s.theme = defaultTheme;
-        if (s && !s.brand) s.brand = { name: "", logo: "" };
-        if (s && typeof s.hydrated !== "boolean") s.hydrated = false;
-        return s;
-      },
-      partialize: (s) => ({
-        entities: s.entities,
-        vaults: s.vaults,
-        transactions: s.transactions,
-        lang: s.lang,
-        theme: s.theme,
-        brand: s.brand,
+/** Persist current state to localStorage. */
+function persistState(state: State): void {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        state: {
+          entities: state.entities,
+          vaults: state.vaults,
+          transactions: state.transactions,
+          lang: state.lang,
+          theme: state.theme,
+          brand: state.brand,
+        },
+        version: 5,
       }),
+    );
+  } catch {
+    // localStorage may be full or unavailable — ignore
+  }
+}
+
+export const useApp = create<State>()((set, get) => {
+  // Wrap set() to auto-persist to localStorage after every state change.
+  // We use a shallow merge approach (no replace) so persistence is simpler.
+  const setAndPersist = (partial: Partial<State>) => {
+    const next = { ...get(), ...partial } as State;
+    persistState(next);
+    set(partial);
+  };
+
+  return {
+    entities: saved.entities ?? DEMO_DATA.entities,
+    vaults: saved.vaults ?? DEMO_DATA.vaults,
+    transactions: saved.transactions ?? DEMO_DATA.transactions,
+    lang: saved.lang ?? "ar",
+    theme: saved.theme ?? defaultTheme,
+    brand: saved.brand ?? { name: "", logo: "" },
+    hydrated: false,
+
+    loadFromSupabase: async () => {
+      if (!isSupabaseConfigured) return;
+      const result = await loadAllFromSupabase();
+      if (!result) return;
+      // Only overwrite local data if Supabase actually has data.
+      const hasData =
+        result.data.entities.length > 0 ||
+        result.data.vaults.length > 0 ||
+        result.data.transactions.length > 0;
+      if (hasData) {
+        setAndPersist({
+          entities: result.data.entities,
+          vaults: result.data.vaults,
+          transactions: result.data.transactions,
+        });
+        if (result.settings) {
+          setAndPersist({
+            lang: result.settings.lang as Lang,
+            theme: result.settings.theme as ThemeMode,
+            brand: result.settings.brand,
+          });
+        }
+      }
+      setAndPersist({ hydrated: true });
     },
-  ),
-);
+
+    setBrand: (patch) => {
+      setAndPersist({ brand: { ...get().brand, ...patch } });
+      if (syncOn()) {
+        const s = get();
+        syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
+      }
+    },
+    setLang: (lang) => {
+      setAndPersist({ lang });
+      if (syncOn()) {
+        const s = get();
+        syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
+      }
+    },
+    setTheme: (theme) => {
+      setAndPersist({ theme });
+      if (syncOn()) {
+        const s = get();
+        syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
+      }
+    },
+
+    addEntity: (e) => {
+      const entity: Entity = { ...e, id: uid(), createdAt: new Date().toISOString() };
+      setAndPersist({ entities: [...get().entities, entity] });
+      if (syncOn()) syncEntityInsert(entity);
+      return entity;
+    },
+    updateEntity: (id, patch) => {
+      setAndPersist({
+        entities: get().entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      });
+      if (syncOn()) syncEntityUpdate(id, patch);
+    },
+    deleteEntity: (id) => {
+      setAndPersist({
+        entities: get().entities.filter((e) => e.id !== id),
+        transactions: get().transactions.filter((t) => t.entityId !== id),
+      });
+      if (syncOn()) syncEntityDelete(id);
+    },
+
+    addVault: (name, balance = 0) => {
+      const vault: Vault = { id: uid(), name, balance };
+      setAndPersist({ vaults: [...get().vaults, vault] });
+      if (syncOn()) syncVaultInsert(vault);
+      return vault;
+    },
+    updateVault: (id, patch) => {
+      setAndPersist({
+        vaults: get().vaults.map((v) => (v.id === id ? { ...v, ...patch } : v)),
+      });
+      if (syncOn()) syncVaultUpdate(id, patch);
+    },
+    deleteVault: (id) => {
+      setAndPersist({ vaults: get().vaults.filter((v) => v.id !== id) });
+      if (syncOn()) syncVaultDelete(id);
+    },
+
+    addTransaction: (t) => {
+      const tx: Transaction = { ...t, id: uid() };
+      setAndPersist({ transactions: [...get().transactions, tx] });
+      if (syncOn()) syncTransactionInsert(tx);
+      return tx;
+    },
+    updateTransaction: (id, patch) => {
+      setAndPersist({
+        transactions: get().transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+      });
+      if (syncOn()) syncTransactionUpdate(id, patch);
+    },
+    deleteTransaction: (id) => {
+      setAndPersist({ transactions: get().transactions.filter((t) => t.id !== id) });
+      if (syncOn()) syncTransactionDelete(id);
+    },
+    deleteTransactions: (ids) => {
+      setAndPersist({ transactions: get().transactions.filter((t) => !ids.includes(t.id)) });
+      if (syncOn()) syncTransactionsDelete(ids);
+    },
+
+    replaceAll: (data) => {
+      setAndPersist({
+        entities: data.entities ?? [],
+        vaults: data.vaults ?? [],
+        transactions: data.transactions ?? [],
+      });
+      if (syncOn()) syncReplaceAll(data);
+    },
+
+    loadDemoData: () => {
+      setAndPersist({
+        entities: DEMO_DATA.entities,
+        vaults: DEMO_DATA.vaults,
+        transactions: DEMO_DATA.transactions,
+      });
+      if (syncOn()) syncReplaceAll(DEMO_DATA);
+    },
+    clearAllData: () => {
+      const empty: AppData = {
+        entities: [],
+        vaults: [{ id: "main", name: "Main Cash", balance: 0 }],
+        transactions: [],
+      };
+      setAndPersist(empty);
+      if (syncOn()) syncReplaceAll(empty);
+    },
+  };
+});
 
 /** Derived selectors */
 export function useTotals() {
