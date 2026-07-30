@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as DebtsRouteImport } from './routes/debts'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as QuantitiesRouteImport } from './routes/quantities'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TransactionsRouteImport } from './routes/transactions'
@@ -35,11 +34,6 @@ const AnalyticsRoute = AnalyticsRouteImport.update({
 const DebtsRoute = DebtsRouteImport.update({
   id: '/debts',
   path: '/debts',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QuantitiesRoute = QuantitiesRouteImport.update({
@@ -87,7 +81,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/debts': typeof DebtsRoute
-  '/login': typeof LoginRoute
   '/quantities': typeof QuantitiesRoute
   '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRoute
@@ -101,7 +94,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/debts': typeof DebtsRoute
-  '/login': typeof LoginRoute
   '/quantities': typeof QuantitiesRoute
   '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRoute
@@ -116,7 +108,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/analytics': typeof AnalyticsRoute
   '/debts': typeof DebtsRoute
-  '/login': typeof LoginRoute
   '/quantities': typeof QuantitiesRoute
   '/settings': typeof SettingsRoute
   '/transactions': typeof TransactionsRoute
@@ -132,7 +123,6 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/debts'
-    | '/login'
     | '/quantities'
     | '/settings'
     | '/transactions'
@@ -146,7 +136,6 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/debts'
-    | '/login'
     | '/quantities'
     | '/settings'
     | '/transactions'
@@ -160,7 +149,6 @@ export interface FileRouteTypes {
     | '/'
     | '/analytics'
     | '/debts'
-    | '/login'
     | '/quantities'
     | '/settings'
     | '/transactions'
@@ -175,7 +163,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnalyticsRoute: typeof AnalyticsRoute
   DebtsRoute: typeof DebtsRoute
-  LoginRoute: typeof LoginRoute
   QuantitiesRoute: typeof QuantitiesRoute
   SettingsRoute: typeof SettingsRoute
   TransactionsRoute: typeof TransactionsRoute
@@ -207,13 +194,6 @@ declare module '@tanstack/react-router' {
       path: '/debts'
       fullPath: '/debts'
       preLoaderRoute: typeof DebtsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/quantities': {
@@ -279,7 +259,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnalyticsRoute: AnalyticsRoute,
   DebtsRoute: DebtsRoute,
-  LoginRoute: LoginRoute,
   QuantitiesRoute: QuantitiesRoute,
   SettingsRoute: SettingsRoute,
   TransactionsRoute: TransactionsRoute,

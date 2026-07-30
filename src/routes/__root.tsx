@@ -4,16 +4,13 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
-  useRouterState,
   HeadContent,
   Scripts,
-  useNavigate,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportError } from "../lib/error-reporting";
-import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { useApp } from "@/lib/store";
 
 function NotFoundComponent() {
@@ -125,62 +122,19 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-
-  return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AuthGate />
-      </AuthProvider>
-    </QueryClientProvider>
-  );
-}
-
-/**
- * Redirects unauthenticated users to /login and loads data from Supabase
- * once a session is established.
- */
-function AuthGate() {
-  const { session, loading, configured } = useAuth();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const navigate = useNavigate();
   const loadFromSupabase = useApp((s) => s.loadFromSupabase);
   const hydrated = useApp((s) => s.hydrated);
 
-  // Redirect logic
+  // Load data from Supabase once on mount
   useEffect(() => {
-    if (loading) return;
-    if (!session && pathname !== "/login") {
-      navigate({ to: "/login" });
-    }
-    if (session && pathname === "/login") {
-      navigate({ to: "/" });
-    }
-  }, [session, loading, pathname, navigate]);
-
-  // Load data from Supabase when session becomes available
-  useEffect(() => {
-    if (session && !hydrated) {
+    if (!hydrated) {
       loadFromSupabase();
     }
-  }, [session, hydrated, loadFromSupabase]);
+  }, [hydrated, loadFromSupabase]);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      </div>
-    );
-  }
-
-  // If Supabase isn't configured, let the app run in offline/demo mode
-  if (!configured) {
-    return <Outlet />;
-  }
-
-  // Show login page without the app shell
-  if (!session) {
-    return <Outlet />;
-  }
-
-  return <Outlet />;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Outlet />
+    </QueryClientProvider>
+  );
 }

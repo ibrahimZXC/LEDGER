@@ -15,13 +15,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * Shared Supabase client.
  * Configure via VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY env vars.
  */
-export const supabase: SupabaseClient = createClient(supabaseUrl ?? "", supabaseAnonKey ?? "", {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-});
+export const supabase: SupabaseClient = createClient(supabaseUrl ?? "", supabaseAnonKey ?? "");
 
 /** True when Supabase env vars are configured. */
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);

@@ -1,10 +1,9 @@
 import { useRef, useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Download, Upload, Check, LogOut } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Download, Upload, Check } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/lib/store";
-import { useAuth } from "@/hooks/useAuth";
 import { useI18n } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { THEME_MODES, type AppData, type ThemeMode } from "@/types";
@@ -41,16 +40,9 @@ const SWATCH: Record<ThemeMode, string[]> = {
 function SettingsPage() {
   const { t, lang } = useI18n();
   const state = useApp();
-  const { signOut, configured } = useAuth();
-  const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
   const logoRef = useRef<HTMLInputElement>(null);
   const [imported, setImported] = useState(false);
-
-  async function handleSignOut() {
-    await signOut();
-    navigate({ to: "/login" });
-  }
 
   function exportData() {
     const data: AppData = {
@@ -219,20 +211,6 @@ function SettingsPage() {
             />
           </div>
         </Section>
-
-        {configured && (
-          <Section title={t("signIn")}>
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-destructive"
-              onClick={handleSignOut}
-            >
-              <LogOut className="size-3.5" strokeWidth={1.75} />
-              {t("signOut")}
-            </Button>
-          </Section>
-        )}
       </div>
     </AppShell>
   );

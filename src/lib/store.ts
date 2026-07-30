@@ -4,6 +4,7 @@ import type { AppData, Entity, ThemeMode, Transaction, Vault } from "@/types";
 import type { Lang } from "@/lib/i18n";
 import { entityDelta, vaultDelta } from "@/lib/ledger";
 import { DEMO_DATA } from "@/lib/demo";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import {
   loadAllFromSupabase,
   syncEntityDelete,
@@ -24,24 +25,20 @@ export const defaultTheme: ThemeMode = "light";
 
 export interface Brand {
   name: string;
-  logo: string; // data URL or empty
+  logo: string;
 }
 
 interface State extends AppData {
   lang: Lang;
   theme: ThemeMode;
   brand: Brand;
-  /** When true, mutations also push to Supabase. */
-  syncEnabled: boolean;
   /** Whether data has been loaded from Supabase at least once. */
   hydrated: boolean;
-  setSyncEnabled: (v: boolean) => void;
   loadFromSupabase: () => Promise<void>;
   setBrand: (patch: Partial<Brand>) => void;
   setLang: (lang: Lang) => void;
   setTheme: (theme: ThemeMode) => void;
   addEntity: (e: Omit<Entity, "id" | "createdAt">) => Entity;
-
   updateEntity: (id: string, patch: Partial<Entity>) => void;
   deleteEntity: (id: string) => void;
   addVault: (name: string, balance?: number) => Vault;
@@ -58,6 +55,9 @@ interface State extends AppData {
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
+/** True when Supabase is configured and sync should fire. */
+const syncOn = () => isSupabaseConfigured;
+
 export const useApp = create<State>()(
   persist(
     (set, get) => ({
@@ -67,12 +67,10 @@ export const useApp = create<State>()(
       lang: "ar",
       theme: defaultTheme,
       brand: { name: "", logo: "" },
-      syncEnabled: false,
       hydrated: false,
 
-      setSyncEnabled: (v) => set({ syncEnabled: v }),
-
       loadFromSupabase: async () => {
+        if (!isSupabaseConfigured) return;
         const result = await loadAllFromSupabase();
         if (!result) return;
         set({
@@ -80,7 +78,6 @@ export const useApp = create<State>()(
           vaults: result.data.vaults,
           transactions: result.data.transactions,
           hydrated: true,
-          syncEnabled: true,
         });
         if (result.settings) {
           set({
@@ -93,74 +90,80 @@ export const useApp = create<State>()(
 
       setBrand: (patch) => {
         set((s) => ({ brand: { ...s.brand, ...patch } }));
-        const s = get();
-        if (s.syncEnabled) syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
+        if (syncOn()) {
+          const s = get();
+          syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
+        }
       },
       setLang: (lang) => {
         set({ lang });
-        const s = get();
-        if (s.syncEnabled) syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
+        if (syncOn()) {
+          const s = get();
+          syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
+        }
       },
       setTheme: (theme) => {
         set({ theme });
-        const s = get();
-        if (s.syncEnabled) syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
+        if (syncOn()) {
+          const s = get();
+          syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
+        }
       },
 
       addEntity: (e) => {
         const entity: Entity = { ...e, id: uid(), createdAt: new Date().toISOString() };
         set((s) => ({ entities: [...s.entities, entity] }));
-        if (get().syncEnabled) syncEntityInsert(entity);
+        if (syncOn()) syncEntityInsert(entity);
         return entity;
       },
       updateEntity: (id, patch) => {
         set((s) => ({
           entities: s.entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
         }));
-        if (get().syncEnabled) syncEntityUpdate(id, patch);
+        if (syncOn()) syncEntityUpdate(id, patch);
       },
       deleteEntity: (id) => {
         set((s) => ({
           entities: s.entities.filter((e) => e.id !== id),
           transactions: s.transactions.filter((t) => t.entityId !== id),
         }));
-        if (get().syncEnabled) syncEntityDelete(id);
+        if (syncOn()) syncEntityDelete(id);
       },
 
       addVault: (name, balance = 0) => {
         const vault: Vault = { id: uid(), name, balance };
         set((s) => ({ vaults: [...s.vaults, vault] }));
-        if (get().syncEnabled) syncVaultInsert(vault);
+        if (syncOn()) syncVaultInsert(vault);
         return vault;
       },
       updateVault: (id, patch) => {
         set((s) => ({ vaults: s.vaults.map((v) => (v.id === id ? { ...v, ...patch } : v)) }));
-        if (get().syncEnabled) syncVaultUpdate(id, patch);
+        if (syncOn()) syncVaultUpdate(id, patch);
       },
       deleteVault: (id) => {
         set((s) => ({ vaults: s.vaults.filter((v) => v.id !== id) }));
-        if (get().syncEnabled) syncVaultDelete(id);
+        if (syncOn()) syncVaultDelete(id);
       },
 
       addTransaction: (t) => {
         const tx: Transaction = { ...t, id: uid() };
         set((s) => ({ transactions: [...s.transactions, tx] }));
-        if (get().syncEnabled) syncTransactionInsert(tx);
+        if (syncOn()) syncTransactionInsert(tx);
         return tx;
       },
       updateTransaction: (id, patch) => {
         set((s) => ({
           transactions: s.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
         }));
-        if (get().syncEnabled) syncTransactionUpdate(id, patch);
+        if (syncOn()) syncTransactionUpdate(id, patch);
       },
       deleteTransaction: (id) => {
         set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
-        if (get().syncEnabled) syncTransactionDelete(id);
+        if (syncOn()) syncTransactionDelete(id);
       },
       deleteTransactions: (ids) => {
         set((s) => ({ transactions: s.transactions.filter((t) => !ids.includes(t.id)) }));
-        if (get().syncEnabled) syncTransactionsDelete(ids);
+        if (syncOn()) syncTransactionsDelete(ids);
       },
 
       replaceAll: (data) => {
@@ -169,7 +172,7 @@ export const useApp = create<State>()(
           vaults: data.vaults ?? [],
           transactions: data.transactions ?? [],
         });
-        if (get().syncEnabled) syncReplaceAll(data);
+        if (syncOn()) syncReplaceAll(data);
       },
 
       loadDemoData: () => {
@@ -178,7 +181,7 @@ export const useApp = create<State>()(
           vaults: DEMO_DATA.vaults,
           transactions: DEMO_DATA.transactions,
         });
-        if (get().syncEnabled) syncReplaceAll(DEMO_DATA);
+        if (syncOn()) syncReplaceAll(DEMO_DATA);
       },
       clearAllData: () => {
         const empty: AppData = {
@@ -187,17 +190,16 @@ export const useApp = create<State>()(
           transactions: [],
         };
         set(empty);
-        if (get().syncEnabled) syncReplaceAll(empty);
+        if (syncOn()) syncReplaceAll(empty);
       },
     }),
     {
       name: "biz-ledger-v1",
-      version: 4,
+      version: 5,
       migrate: (state) => {
         const s = state as State;
         if (s && typeof s.theme !== "string") s.theme = defaultTheme;
         if (s && !s.brand) s.brand = { name: "", logo: "" };
-        if (s && typeof s.syncEnabled !== "boolean") s.syncEnabled = false;
         if (s && typeof s.hydrated !== "boolean") s.hydrated = false;
         return s;
       },
