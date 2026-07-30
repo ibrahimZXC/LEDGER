@@ -73,19 +73,28 @@ export const useApp = create<State>()(
         if (!isSupabaseConfigured) return;
         const result = await loadAllFromSupabase();
         if (!result) return;
-        set({
-          entities: result.data.entities,
-          vaults: result.data.vaults,
-          transactions: result.data.transactions,
-          hydrated: true,
-        });
-        if (result.settings) {
+        // Only overwrite local data if Supabase actually has data.
+        // This prevents empty Supabase tables from wiping localStorage data.
+        const hasData =
+          result.data.entities.length > 0 ||
+          result.data.vaults.length > 0 ||
+          result.data.transactions.length > 0;
+        if (hasData) {
           set({
-            lang: result.settings.lang as Lang,
-            theme: result.settings.theme as ThemeMode,
-            brand: result.settings.brand,
+            entities: result.data.entities,
+            vaults: result.data.vaults,
+            transactions: result.data.transactions,
           });
+          if (result.settings) {
+            set({
+              lang: result.settings.lang as Lang,
+              theme: result.settings.theme as ThemeMode,
+              brand: result.settings.brand,
+            });
+          }
         }
+        // Always mark as hydrated so we don't keep trying on every render
+        set({ hydrated: true });
       },
 
       setBrand: (patch) => {
