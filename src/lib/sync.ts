@@ -119,6 +119,7 @@ function transactionToRow(t: Transaction): TransactionRow {
 export async function loadAllFromSupabase(): Promise<{
   data: AppData;
   settings: { lang: string; theme: string; brand: Brand } | null;
+  error?: string | null;
 } | null> {
   const [entitiesRes, vaultsRes, transactionsRes, settingsRes] = await Promise.all([
     supabase.from("entities").select("*"),
@@ -127,15 +128,17 @@ export async function loadAllFromSupabase(): Promise<{
     supabase.from("settings").select("*").eq("id", "default").maybeSingle(),
   ]);
 
-  // If any table query failed (e.g. tables don't exist), return null
-  // so the store keeps its existing localStorage data instead of overwriting with empty.
-  if (entitiesRes.error || vaultsRes.error || transactionsRes.error) {
-    if (entitiesRes.error) console.error("[sync] load entities:", entitiesRes.error.message);
-    if (vaultsRes.error) console.error("[sync] load vaults:", vaultsRes.error.message);
-    if (transactionsRes.error)
-      console.error("[sync] load transactions:", transactionsRes.error.message);
-    if (settingsRes.error) console.error("[sync] load settings:", settingsRes.error.message);
-    return null;
+  // If any table query failed (e.g. tables don't exist), return the error message
+  const error =
+    entitiesRes.error?.message ||
+    vaultsRes.error?.message ||
+    transactionsRes.error?.message ||
+    settingsRes.error?.message ||
+    null;
+
+  if (error) {
+    console.error("[sync] load error:", error);
+    return { data: { entities: [], vaults: [], transactions: [] }, settings: null, error };
   }
 
   const data: AppData = {
@@ -153,17 +156,21 @@ export async function loadAllFromSupabase(): Promise<{
       }
     : null;
 
-  return { data, settings };
+  return { data, settings, error: null };
 }
 
 // ── Entity sync ─────────────────────────────────────────────────────────────
 
-export async function syncEntityInsert(e: Entity): Promise<void> {
-  const { error } = await supabase.from("entities").insert(entityToRow(e));
-  if (error) console.error("[sync] insert entity:", error.message);
+export async function syncEntityInsert(e: Entity): Promise<string | null> {
+  const { error } = await supabase.from("entities").upsert(entityToRow(e), { onConflict: "id" });
+  if (error) {
+    console.error("[sync] insert entity:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
-export async function syncEntityUpdate(id: string, patch: Partial<Entity>): Promise<void> {
+export async function syncEntityUpdate(id: string, patch: Partial<Entity>): Promise<string | null> {
   const row: Partial<EntityRow> = {};
   if (patch.name !== undefined) row.name = patch.name;
   if (patch.phone !== undefined) row.phone = patch.phone;
@@ -172,45 +179,71 @@ export async function syncEntityUpdate(id: string, patch: Partial<Entity>): Prom
   if (patch.notes !== undefined) row.notes = patch.notes;
   if (patch.createdAt !== undefined) row.created_at = patch.createdAt;
   const { error } = await supabase.from("entities").update(row).eq("id", id);
-  if (error) console.error("[sync] update entity:", error.message);
+  if (error) {
+    console.error("[sync] update entity:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
-export async function syncEntityDelete(id: string): Promise<void> {
+export async function syncEntityDelete(id: string): Promise<string | null> {
   const { error } = await supabase.from("entities").delete().eq("id", id);
-  if (error) console.error("[sync] delete entity:", error.message);
+  if (error) {
+    console.error("[sync] delete entity:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
 // ── Vault sync ──────────────────────────────────────────────────────────────
 
-export async function syncVaultInsert(v: Vault): Promise<void> {
-  const { error } = await supabase.from("vaults").insert(vaultToRow(v));
-  if (error) console.error("[sync] insert vault:", error.message);
+export async function syncVaultInsert(v: Vault): Promise<string | null> {
+  const { error } = await supabase.from("vaults").upsert(vaultToRow(v), { onConflict: "id" });
+  if (error) {
+    console.error("[sync] insert vault:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
-export async function syncVaultUpdate(id: string, patch: Partial<Vault>): Promise<void> {
+export async function syncVaultUpdate(id: string, patch: Partial<Vault>): Promise<string | null> {
   const row: Partial<VaultRow> = {};
   if (patch.name !== undefined) row.name = patch.name;
   if (patch.balance !== undefined) row.balance = patch.balance;
   const { error } = await supabase.from("vaults").update(row).eq("id", id);
-  if (error) console.error("[sync] update vault:", error.message);
+  if (error) {
+    console.error("[sync] update vault:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
-export async function syncVaultDelete(id: string): Promise<void> {
+export async function syncVaultDelete(id: string): Promise<string | null> {
   const { error } = await supabase.from("vaults").delete().eq("id", id);
-  if (error) console.error("[sync] delete vault:", error.message);
+  if (error) {
+    console.error("[sync] delete vault:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
 // ── Transaction sync ────────────────────────────────────────────────────────
 
-export async function syncTransactionInsert(t: Transaction): Promise<void> {
-  const { error } = await supabase.from("transactions").insert(transactionToRow(t));
-  if (error) console.error("[sync] insert transaction:", error.message);
+export async function syncTransactionInsert(t: Transaction): Promise<string | null> {
+  const { error } = await supabase.from("transactions").upsert(transactionToRow(t), {
+    onConflict: "id",
+  });
+  if (error) {
+    console.error("[sync] insert transaction:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
 export async function syncTransactionUpdate(
   id: string,
   patch: Partial<Transaction>,
-): Promise<void> {
+): Promise<string | null> {
   const row: Partial<TransactionRow> = {};
   if (patch.date !== undefined) row.date = patch.date;
   if (patch.entityType !== undefined) row.entity_type = patch.entityType;
@@ -225,17 +258,29 @@ export async function syncTransactionUpdate(
   if (patch.notes !== undefined) row.notes = patch.notes;
   if (patch.ref !== undefined) row.ref = patch.ref ?? null;
   const { error } = await supabase.from("transactions").update(row).eq("id", id);
-  if (error) console.error("[sync] update transaction:", error.message);
+  if (error) {
+    console.error("[sync] update transaction:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
-export async function syncTransactionDelete(id: string): Promise<void> {
+export async function syncTransactionDelete(id: string): Promise<string | null> {
   const { error } = await supabase.from("transactions").delete().eq("id", id);
-  if (error) console.error("[sync] delete transaction:", error.message);
+  if (error) {
+    console.error("[sync] delete transaction:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
-export async function syncTransactionsDelete(ids: string[]): Promise<void> {
+export async function syncTransactionsDelete(ids: string[]): Promise<string | null> {
   const { error } = await supabase.from("transactions").delete().in("id", ids);
-  if (error) console.error("[sync] delete transactions:", error.message);
+  if (error) {
+    console.error("[sync] delete transactions:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
 // ── Settings sync ───────────────────────────────────────────────────────────
@@ -244,7 +289,7 @@ export async function syncSettings(settings: {
   lang: string;
   theme: string;
   brand: Brand;
-}): Promise<void> {
+}): Promise<string | null> {
   const row: SettingsRow = {
     id: "default",
     lang: settings.lang,
@@ -253,35 +298,54 @@ export async function syncSettings(settings: {
     brand_logo: settings.brand.logo,
   };
   const { error } = await supabase.from("settings").upsert(row, { onConflict: "id" });
-  if (error) console.error("[sync] upsert settings:", error.message);
+  if (error) {
+    console.error("[sync] upsert settings:", error.message);
+    return error.message;
+  }
+  return null;
 }
 
 // ── Bulk replace (for import / clear / demo) ────────────────────────────────
 
-export async function syncReplaceAll(data: AppData): Promise<void> {
+export async function syncReplaceAll(data: AppData): Promise<string | null> {
   // Delete all existing, then insert new — simplest correct approach
-  await Promise.all([
+  const results = await Promise.all([
     supabase.from("transactions").delete().neq("id", ""),
     supabase.from("entities").delete().neq("id", ""),
     supabase.from("vaults").delete().neq("id", ""),
   ]);
+  const error = results.find((r) => r.error)?.error;
+  if (error) {
+    console.error("[sync] bulk delete error:", error.message);
+    return error.message;
+  }
 
   if (data.entities.length > 0) {
     const { error } = await supabase
       .from("entities")
       .insert(data.entities.map((e) => entityToRow(e)));
-    if (error) console.error("[sync] bulk insert entities:", error.message);
+    if (error) {
+      console.error("[sync] bulk insert entities:", error.message);
+      return error.message;
+    }
   }
   if (data.vaults.length > 0) {
     const { error } = await supabase.from("vaults").insert(data.vaults.map((v) => vaultToRow(v)));
-    if (error) console.error("[sync] bulk insert vaults:", error.message);
+    if (error) {
+      console.error("[sync] bulk insert vaults:", error.message);
+      return error.message;
+    }
   }
   if (data.transactions.length > 0) {
     const { error } = await supabase
       .from("transactions")
       .insert(data.transactions.map((t) => transactionToRow(t)));
-    if (error) console.error("[sync] bulk insert transactions:", error.message);
+    if (error) {
+      console.error("[sync] bulk insert transactions:", error.message);
+      return error.message;
+    }
   }
+  return null;
 }
 
 // ── Realtime subscriptions ───────────────────────────────────────────────────

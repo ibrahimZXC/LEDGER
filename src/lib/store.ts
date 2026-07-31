@@ -31,6 +31,8 @@ interface State extends AppData {
   lang: Lang;
   theme: ThemeMode;
   brand: Brand;
+  /** Sync error message (null when synced OK). */
+  syncError: string | null;
   /** Whether data has been loaded from Supabase at least once. */
   hydrated: boolean;
   loadFromSupabase: () => Promise<void>;
@@ -121,12 +123,17 @@ export const useApp = create<State>()((set, get) => {
     lang: saved.lang ?? "ar",
     theme: saved.theme ?? defaultTheme,
     brand: saved.brand ?? { name: "", logo: "" },
+    syncError: null,
     hydrated: false,
 
     loadFromSupabase: async () => {
       if (!isSupabaseConfigured) return;
       const result = await loadAllFromSupabase();
       if (!result) return;
+      if (result.error) {
+        set({ syncError: result.error });
+        return;
+      }
       // Only overwrite local data if Supabase actually has data.
       const hasData =
         result.data.entities.length > 0 ||
@@ -146,13 +153,17 @@ export const useApp = create<State>()((set, get) => {
           });
         }
       }
-      setAndPersist({ hydrated: true });
+      setAndPersist({ hydrated: true, syncError: null });
     },
 
     refreshFromSupabase: async () => {
       if (!isSupabaseConfigured) return;
       const result = await loadAllFromSupabase();
       if (!result) return;
+      if (result.error) {
+        set({ syncError: result.error });
+        return;
+      }
       // Always overwrite local data with the latest remote state.
       setAndPersist({
         entities: result.data.entities,
@@ -166,6 +177,7 @@ export const useApp = create<State>()((set, get) => {
           brand: result.settings.brand,
         });
       }
+      set({ syncError: null });
     },
 
     setBrand: (patch) => {

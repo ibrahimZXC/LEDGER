@@ -51,6 +51,7 @@ export function AppShell({
   const { lang, t, dir } = useI18n();
   const theme = useApp((s) => s.theme);
   const brand = useApp((s) => s.brand);
+  const syncError = useApp((s) => s.syncError);
 
   const setLang = useApp((s) => s.setLang);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -126,6 +127,14 @@ export function AppShell({
           <h1 className="text-[13px] font-medium tracking-tight">{title}</h1>
           <div className="flex items-center gap-2">{action}</div>
         </header>
+
+        {/* Sync error banner */}
+        {syncError && (
+          <div className="mx-4 mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive md:mx-7">
+            ⚠️ {lang === "ar" ? "خطأ في المزامنة: " : "Sync error: "}
+            {syncError}
+          </div>
+        )}
 
         {/* Main content */}
         <main className="flex-1 p-4 md:p-7">{children}</main>
