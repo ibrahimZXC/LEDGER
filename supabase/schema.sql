@@ -85,19 +85,32 @@ create policy "settings_public_all" on public.settings
 -- ============================================================================
 
 -- Enable realtime for cross-device sync (required for live updates).
--- Uses a DO block so it won't error if a table doesn't exist yet.
+-- Uses a DO block that checks both table existence AND publication membership
+-- so it's fully idempotent (safe to run multiple times without errors).
 do $$
 begin
-  if to_regclass('public.entities') is not null then
+  if to_regclass('public.entities') is not null and not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'entities'
+  ) then
     alter publication supabase_realtime add table public.entities;
   end if;
-  if to_regclass('public.vaults') is not null then
+  if to_regclass('public.vaults') is not null and not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'vaults'
+  ) then
     alter publication supabase_realtime add table public.vaults;
   end if;
-  if to_regclass('public.transactions') is not null then
+  if to_regclass('public.transactions') is not null and not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'transactions'
+  ) then
     alter publication supabase_realtime add table public.transactions;
   end if;
-  if to_regclass('public.settings') is not null then
+  if to_regclass('public.settings') is not null and not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'settings'
+  ) then
     alter publication supabase_realtime add table public.settings;
   end if;
 end $$;
