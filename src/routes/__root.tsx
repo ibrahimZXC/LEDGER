@@ -7,11 +7,12 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportError } from "../lib/error-reporting";
 import { useApp } from "@/lib/store";
+import { subscribeToChanges } from "@/lib/sync";
 
 function NotFoundComponent() {
   return (
@@ -123,7 +124,9 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const loadFromSupabase = useApp((s) => s.loadFromSupabase);
+  const refreshFromSupabase = useApp((s) => s.refreshFromSupabase);
   const hydrated = useApp((s) => s.hydrated);
+  const busyRef = useRef(false);
 
   // Load data from Supabase once on mount
   useEffect(() => {
@@ -131,6 +134,59 @@ function RootComponent() {
       loadFromSupabase();
     }
   }, [hydrated, loadFromSupabase]);
+
+  // Subscribe to realtime changes from other devices
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    // Small delay so we don't fight with the initial load
+    const timer = setTimeout(() => {
+      if (hydrated) {
+        unsubscribe = subscribeToChanges(() => {
+          if (busyRef.current) return;
+          busyRef.current = true;
+          refreshFromSupabase().finally(() => {
+            busyRef.current = false;
+          });
+        });
+      }
+    }, 1500);
+
+    return () => {
+      clearTimeout(timer);
+      unsubscribe?.();
+    };
+  }, [hydrated, refreshFromSupabase]);
+
+  // Re-sync when the tab becomes visible again (e.g. switching back to the app)
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible" && hydrated) {
+        if (busyRef.current) return;
+        busyRef.current = true;
+        refreshFromSupabase().finally(() => {
+          busyRef.current = false;
+        });
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [hydrated, refreshFromSupabase]);
+
+  // Re-sync when the window regains focus
+  useEffect(() => {
+    const onFocus = () => {
+      if (document.visibilityState === "visible" && hydrated) {
+        if (busyRef.current) return;
+        busyRef.current = true;
+        refreshFromSupabase().finally(() => {
+          busyRef.current = false;
+        });
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [hydrated, refreshFromSupabase]);
 
   return (
     <QueryClientProvider client={queryClient}>

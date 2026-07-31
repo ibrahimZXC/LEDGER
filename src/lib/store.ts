@@ -34,6 +34,7 @@ interface State extends AppData {
   /** Whether data has been loaded from Supabase at least once. */
   hydrated: boolean;
   loadFromSupabase: () => Promise<void>;
+  refreshFromSupabase: () => Promise<void>;
   setBrand: (patch: Partial<Brand>) => void;
   setLang: (lang: Lang) => void;
   setTheme: (theme: ThemeMode) => void;
@@ -146,6 +147,25 @@ export const useApp = create<State>()((set, get) => {
         }
       }
       setAndPersist({ hydrated: true });
+    },
+
+    refreshFromSupabase: async () => {
+      if (!isSupabaseConfigured) return;
+      const result = await loadAllFromSupabase();
+      if (!result) return;
+      // Always overwrite local data with the latest remote state.
+      setAndPersist({
+        entities: result.data.entities,
+        vaults: result.data.vaults,
+        transactions: result.data.transactions,
+      });
+      if (result.settings) {
+        setAndPersist({
+          lang: result.settings.lang as Lang,
+          theme: result.settings.theme as ThemeMode,
+          brand: result.settings.brand,
+        });
+      }
     },
 
     setBrand: (patch) => {

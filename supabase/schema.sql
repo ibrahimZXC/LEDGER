@@ -79,3 +79,13 @@ create policy "transactions_public_all" on public.transactions
 drop policy if exists "settings_public_all" on public.settings;
 create policy "settings_public_all" on public.settings
   for all using (true) with check (true);
+
+-- ============================================================================
+-- Realtime
+-- ============================================================================
+
+-- Enable realtime for cross-device sync (required for live updates)
+alter publication supabase_realtime add table public.entities;
+alter publication supabase_realtime add table public.vaults;
+alter publication supabase_realtime add table public.transactions;
+alter publication supabase_realtime add table public.settings;

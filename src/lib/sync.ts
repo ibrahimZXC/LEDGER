@@ -283,3 +283,34 @@ export async function syncReplaceAll(data: AppData): Promise<void> {
     if (error) console.error("[sync] bulk insert transactions:", error.message);
   }
 }
+
+// ── Realtime subscriptions ───────────────────────────────────────────────────
+// Keep all open devices in sync when data changes on any device.
+
+let channel: ReturnType<typeof supabase.channel> | null = null;
+
+/**
+ * Subscribe to realtime changes on all tables.
+ * Calls onEvent whenever any row changes on any device.
+ */
+export function subscribeToChanges(onEvent: () => void): () => void {
+  // Clean up any existing channel
+  if (channel) {
+    supabase.removeChannel(channel);
+  }
+
+  channel = supabase
+    .channel("db-changes")
+    .on("postgres_changes", { event: "*", schema: "public", table: "entities" }, () => onEvent())
+    .on("postgres_changes", { event: "*", schema: "public", table: "vaults" }, () => onEvent())
+    .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, () => onEvent())
+    .on("postgres_changes", { event: "*", schema: "public", table: "settings" }, () => onEvent())
+    .subscribe();
+
+  return () => {
+    if (channel) {
+      supabase.removeChannel(channel);
+      channel = null;
+    }
+  };
+}
