@@ -128,12 +128,13 @@ function RootComponent() {
   const hydrated = useApp((s) => s.hydrated);
   const busyRef = useRef(false);
 
-  // Load data from Supabase once on mount
+  // Load data from Supabase on mount.
+  // Always fetch fresh from Supabase regardless of hydrated flag,
+  // so opening a private tab or a new device always gets latest cloud data.
   useEffect(() => {
-    if (!hydrated) {
-      loadFromSupabase();
-    }
-  }, [hydrated, loadFromSupabase]);
+    loadFromSupabase();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Subscribe to realtime changes from other devices
   useEffect(() => {

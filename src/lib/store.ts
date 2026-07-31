@@ -155,22 +155,38 @@ export const useApp = create<State>()((set, get) => {
           });
         }
       } else {
-        // Cloud is empty → push local data to seed the cloud
+        // Cloud appears empty — only seed if we have confirmed local data AND
+        // this is a genuine first-time setup (not a silent RLS/permission failure).
+        // A misconfigured Supabase policy can cause SELECT to return [] without an error,
+        // which would make the app think the cloud is empty and wipe it with local data.
         const s = get();
         const localHasData =
           s.entities.length > 0 || s.vaults.length > 0 || s.transactions.length > 0;
         if (localHasData) {
-          const err = await syncReplaceAll({
-            entities: s.entities,
-            vaults: s.vaults,
-            transactions: s.transactions,
-          });
-          if (err) {
-            set({ syncError: err });
-          } else {
-            // Also push settings
-            await syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
+          // Double-check with a COUNT to confirm the table is truly empty
+          const { supabase: _sb } = await import("@/lib/supabase");
+          const { count, error: countError } = await _sb
+            .from("entities")
+            .select("*", { count: "exact", head: true });
+          if (!countError && count === 0) {
+            // Confirmed empty → safe to seed cloud with local data
+            const err = await syncReplaceAll({
+              entities: s.entities,
+              vaults: s.vaults,
+              transactions: s.transactions,
+            });
+            if (err) {
+              set({ syncError: err });
+            } else {
+              await syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
+            }
+          } else if (countError) {
+            // Count failed → likely a permissions issue; skip seed to protect cloud data
+            console.warn("[store] Could not verify remote state, skipping auto-seed:", countError.message);
+            set({ syncError: "Could not connect to Supabase: " + countError.message });
           }
+          // If count > 0 but select returned [] → RLS is filtering rows (wrong config),
+          // do NOT wipe — the data is there, just not visible yet.
         }
       }
       setAndPersist({ hydrated: true, syncError: null });

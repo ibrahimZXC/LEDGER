@@ -81,6 +81,18 @@ create policy "settings_public_all" on public.settings
   for all using (true) with check (true);
 
 -- ============================================================================
+-- Grants (CRITICAL: without these, anon SELECT returns empty instead of an error,
+-- causing the app to think Supabase is empty and wipe remote data with local data)
+-- ============================================================================
+
+grant usage on schema public to anon, authenticated;
+
+grant select, insert, update, delete on public.entities     to anon, authenticated;
+grant select, insert, update, delete on public.vaults       to anon, authenticated;
+grant select, insert, update, delete on public.transactions to anon, authenticated;
+grant select, insert, update, delete on public.settings     to anon, authenticated;
+
+-- ============================================================================
 -- Realtime
 -- ============================================================================
 
