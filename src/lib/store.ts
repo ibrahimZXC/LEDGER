@@ -117,9 +117,11 @@ export const useApp = create<State>()((set, get) => {
   };
 
   return {
-    entities: saved.entities ?? DEMO_DATA.entities,
-    vaults: saved.vaults ?? DEMO_DATA.vaults,
-    transactions: saved.transactions ?? DEMO_DATA.transactions,
+    // Start empty — data comes from Supabase (cloud) or localStorage (returning user).
+    // Demo data is only loaded when explicitly requested via the "Load demo" button.
+    entities: saved.entities ?? [],
+    vaults: saved.vaults ?? [],
+    transactions: saved.transactions ?? [],
     lang: saved.lang ?? "ar",
     theme: saved.theme ?? defaultTheme,
     brand: saved.brand ?? { name: "", logo: "" },
