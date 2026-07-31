@@ -115,6 +115,7 @@ drop policy if exists "settings_select_own" on public.settings;
 drop policy if exists "settings_insert_own" on public.settings;
 drop policy if exists "settings_update_own" on public.settings;
 drop policy if exists "settings_delete_own" on public.settings;
+drop policy if exists "settings_upsert_own" on public.settings;
 
 alter table public.entities drop column if exists user_id;
 alter table public.vaults drop column if exists user_id;
