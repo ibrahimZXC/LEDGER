@@ -84,8 +84,20 @@ create policy "settings_public_all" on public.settings
 -- Realtime
 -- ============================================================================
 
--- Enable realtime for cross-device sync (required for live updates)
-alter publication supabase_realtime add table public.entities;
-alter publication supabase_realtime add table public.vaults;
-alter publication supabase_realtime add table public.transactions;
-alter publication supabase_realtime add table public.settings;
+-- Enable realtime for cross-device sync (required for live updates).
+-- Uses a DO block so it won't error if a table doesn't exist yet.
+do $$
+begin
+  if to_regclass('public.entities') is not null then
+    alter publication supabase_realtime add table public.entities;
+  end if;
+  if to_regclass('public.vaults') is not null then
+    alter publication supabase_realtime add table public.vaults;
+  end if;
+  if to_regclass('public.transactions') is not null then
+    alter publication supabase_realtime add table public.transactions;
+  end if;
+  if to_regclass('public.settings') is not null then
+    alter publication supabase_realtime add table public.settings;
+  end if;
+end $$;
