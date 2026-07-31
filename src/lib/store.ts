@@ -134,12 +134,12 @@ export const useApp = create<State>()((set, get) => {
         set({ syncError: result.error });
         return;
       }
-      // Only overwrite local data if Supabase actually has data.
-      const hasData =
+      const remoteHasData =
         result.data.entities.length > 0 ||
         result.data.vaults.length > 0 ||
         result.data.transactions.length > 0;
-      if (hasData) {
+      if (remoteHasData) {
+        // Cloud has data → pull it to local
         setAndPersist({
           entities: result.data.entities,
           vaults: result.data.vaults,
@@ -151,6 +151,24 @@ export const useApp = create<State>()((set, get) => {
             theme: result.settings.theme as ThemeMode,
             brand: result.settings.brand,
           });
+        }
+      } else {
+        // Cloud is empty → push local data to seed the cloud
+        const s = get();
+        const localHasData =
+          s.entities.length > 0 || s.vaults.length > 0 || s.transactions.length > 0;
+        if (localHasData) {
+          const err = await syncReplaceAll({
+            entities: s.entities,
+            vaults: s.vaults,
+            transactions: s.transactions,
+          });
+          if (err) {
+            set({ syncError: err });
+          } else {
+            // Also push settings
+            await syncSettings({ lang: s.lang, theme: s.theme, brand: s.brand });
+          }
         }
       }
       setAndPersist({ hydrated: true, syncError: null });

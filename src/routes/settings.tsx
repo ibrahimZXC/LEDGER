@@ -177,16 +177,27 @@ function SettingsPage() {
 
         {/* Sync Status */}
         <Section title={t("syncStatus")}>
-          <div className="flex items-center gap-3">
-            <span
-              className={cn(
-                "inline-flex size-2.5 rounded-full",
-                isSupabaseConfigured ? "bg-positive" : "bg-muted-foreground",
-              )}
-            />
-            <span className="text-xs">
-              {isSupabaseConfigured ? t("synced") : t("offline")}
-            </span>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span
+                className={cn(
+                  "inline-flex size-2.5 rounded-full",
+                  isSupabaseConfigured ? "bg-positive" : "bg-muted-foreground",
+                )}
+              />
+              <span className="text-xs">
+                {isSupabaseConfigured ? t("synced") : t("offline")}
+              </span>
+            </div>
+            {isSupabaseConfigured && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => state.refreshFromSupabase()}
+              >
+                {lang === "ar" ? "مزامنة الآن" : "Sync now"}
+              </Button>
+            )}
           </div>
         </Section>
 
