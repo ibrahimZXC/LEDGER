@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, Upload, Check } from "lucide-react";
+import { Download, Upload, Check, Sun, Moon, Monitor, Info } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/lib/store";
 import { useI18n } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { THEME_MODES, type AppData, type ThemeMode } from "@/types";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -79,6 +80,7 @@ function SettingsPage() {
   return (
     <AppShell title={t("settings")}>
       <div className="mx-auto max-w-3xl space-y-5">
+        {/* Branding */}
         <Section title={t("branding")}>
           <div className="flex flex-wrap items-center gap-3">
             <div className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-accent/50">
@@ -126,6 +128,7 @@ function SettingsPage() {
           </div>
         </Section>
 
+        {/* Theme */}
         <Section title={t("themeMode")}>
           <div className="grid gap-2 sm:grid-cols-3">
             {THEME_MODES.map((mode) => {
@@ -152,6 +155,7 @@ function SettingsPage() {
           </div>
         </Section>
 
+        {/* Language */}
         <Section title={t("language")}>
           <div className="flex gap-2">
             <Button
@@ -171,7 +175,23 @@ function SettingsPage() {
           </div>
         </Section>
 
-        <Section title={t("demoData")}>
+        {/* Sync Status */}
+        <Section title={t("syncStatus")}>
+          <div className="flex items-center gap-3">
+            <span
+              className={cn(
+                "inline-flex size-2.5 rounded-full",
+                isSupabaseConfigured ? "bg-positive" : "bg-muted-foreground",
+              )}
+            />
+            <span className="text-xs">
+              {isSupabaseConfigured ? t("synced") : t("offline")}
+            </span>
+          </div>
+        </Section>
+
+        {/* Data Management */}
+        <Section title={t("dataManagement")}>
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => state.loadDemoData()}>
               {t("loadDemo")}
@@ -187,6 +207,7 @@ function SettingsPage() {
           </div>
         </Section>
 
+        {/* Backup */}
         <Section title={t("backup")}>
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={exportData}>
@@ -209,6 +230,21 @@ function SettingsPage() {
                 e.target.value = "";
               }}
             />
+          </div>
+        </Section>
+
+        {/* About */}
+        <Section title={t("about")}>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">{t("appName")}</span>
+              <span className="text-xs font-medium">{t("appName")}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">{t("appVersion")}</span>
+              <span className="text-xs font-medium">1.0.0</span>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">{t("appDescription")}</p>
           </div>
         </Section>
       </div>

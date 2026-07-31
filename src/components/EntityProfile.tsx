@@ -1,16 +1,24 @@
 import { useMemo, useState } from "react";
-import { Pencil, Trash2, Plus, Upload } from "lucide-react";
+import { Pencil, Trash2, Plus, Upload, RotateCcw } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { TransactionDialog } from "@/components/dialogs";
 import { CsvImportDialog } from "@/components/CsvImport";
 import { ExportMenu } from "@/components/ExportMenu";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useApp } from "@/lib/store";
 import { formatDate, formatMoney, useI18n } from "@/lib/format";
 import { buildLedger } from "@/lib/ledger";
 import { statementSpec } from "@/lib/exporters";
 import { cn } from "@/lib/utils";
-import type { EntityType } from "@/types";
+import { TRANSACTION_TYPES, type EntityType } from "@/types";
 
 export function EntityProfile({ id, type }: { id: string; type: EntityType }) {
   const { t, lang } = useI18n();
@@ -20,10 +28,24 @@ export function EntityProfile({ id, type }: { id: string; type: EntityType }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
 
-  const ledger = useMemo(
+  // Filter state
+  const [filterType, setFilterType] = useState("all");
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
+
+  const fullLedger = useMemo(
     () => (entity ? buildLedger(entity, transactions) : []),
     [entity, transactions],
   );
+
+  const ledger = useMemo(() => {
+    return fullLedger.filter((row) => {
+      if (filterType !== "all" && row.tx.type !== filterType) return false;
+      if (filterFrom && row.tx.date < filterFrom) return false;
+      if (filterTo && row.tx.date > filterTo) return false;
+      return true;
+    });
+  }, [fullLedger, filterType, filterFrom, filterTo]);
 
   if (!entity) {
     return (
@@ -33,7 +55,7 @@ export function EntityProfile({ id, type }: { id: string; type: EntityType }) {
     );
   }
 
-  const balance = ledger.length ? ledger[ledger.length - 1].running : entity.openingBalance;
+  const balance = fullLedger.length ? fullLedger[fullLedger.length - 1].running : entity.openingBalance;
 
   return (
     <AppShell
@@ -65,20 +87,65 @@ export function EntityProfile({ id, type }: { id: string; type: EntityType }) {
         </div>
 
         <section className="panel">
-          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
             <h2 className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {t("accountStatement")}
             </h2>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs"
-              onClick={() => setNewTx(true)}
-            >
-              <Plus className="size-3.5" strokeWidth={2} />
-              {t("transactions")}
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={() => setNewTx(true)}
+              >
+                <Plus className="size-3.5" strokeWidth={2} />
+                {t("transactions")}
+              </Button>
+            </div>
           </div>
+
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-accent/30 px-4 py-2">
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="h-7 w-32 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("all")}</SelectItem>
+                {TRANSACTION_TYPES.map((ty) => (
+                  <SelectItem key={ty} value={ty}>
+                    {t(ty)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="date"
+              value={filterFrom}
+              onChange={(e) => setFilterFrom(e.target.value)}
+              className="h-7 w-36 text-xs"
+              aria-label={t("from")}
+            />
+            <Input
+              type="date"
+              value={filterTo}
+              onChange={(e) => setFilterTo(e.target.value)}
+              className="h-7 w-36 text-xs"
+              aria-label={t("to")}
+            />
+            <button
+              className="p-1.5 text-muted-foreground hover:text-foreground"
+              title={t("resetFilters")}
+              onClick={() => {
+                setFilterType("all");
+                setFilterFrom("");
+                setFilterTo("");
+              }}
+            >
+              <RotateCcw className="size-3.5" strokeWidth={1.75} />
+            </button>
+          </div>
+
           {ledger.length === 0 ? (
             <p className="py-12 text-center text-xs text-muted-foreground">{t("noData")}</p>
           ) : (

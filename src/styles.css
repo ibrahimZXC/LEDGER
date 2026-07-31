@@ -268,4 +268,73 @@
       radial-gradient(50rem 40rem at 100% 0%, oklch(0.85 0.08 320 / 0.3), transparent 55%);
     background-attachment: fixed;
   }
+
+  /* Arabic text improvements - larger and bolder */
+  html[lang="ar"] {
+    --text-xs: 0.75rem;
+    --text-xs-weight: 500;
+    --text-sm: 0.875rem;
+    --text-sm-weight: 500;
+    --text-base: 1rem;
+    --text-base-weight: 500;
+    --text-lg: 1.125rem;
+    --text-lg-weight: 600;
+    --text-xl: 1.25rem;
+    --text-xl-weight: 600;
+    --text-2xl: 1.5rem;
+    --text-2xl-weight: 700;
+    --text-3xl: 1.875rem;
+    --text-3xl-weight: 700;
+  }
+
+  html[lang="ar"] body {
+    font-size: 15px;
+  }
+
+  /* Improved mobile layout */
+  @media (max-width: 768px) {
+    .panel {
+      border-radius: 0.625rem;
+    }
+  }
+}
+
+/* iOS-style bottom tab bar for mobile */
+.mobile-tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background-color: var(--panel);
+  border-top: 1px solid var(--color-border);
+  backdrop-filter: blur(18px);
+  padding: 0.375rem 0;
+  padding-bottom: max(0.375rem, env(safe-area-inset-bottom));
+}
+
+.mobile-tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  color: var(--color-muted-foreground);
+  transition: color 0.15s;
+  font-size: 0.625rem;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.mobile-tab-item.active {
+  color: var(--color-foreground);
+}
+
+.mobile-tab-item svg {
+  width: 1.125rem;
+  height: 1.125rem;
 }

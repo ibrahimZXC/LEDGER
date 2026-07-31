@@ -29,6 +29,15 @@ const nav = [
   { to: "/settings", key: "settings", icon: Settings },
 ] as const;
 
+// Mobile bottom nav - only show the main ones
+const mobileNav = [
+  { to: "/", key: "dashboard", icon: LayoutDashboard },
+  { to: "/vault", key: "cashVault", icon: Wallet },
+  { to: "/customers", key: "customers", icon: Users },
+  { to: "/suppliers", key: "suppliers", icon: Truck },
+  { to: "/settings", key: "settings", icon: Settings },
+] as const;
+
 export function AppShell({
   children,
   title,
@@ -69,6 +78,7 @@ export function AppShell({
             : "Inter, system-ui, sans-serif",
       }}
     >
+      {/* Desktop sidebar */}
       <aside className="hidden w-[13.5rem] shrink-0 flex-col bg-sidebar/60 backdrop-blur-[var(--panel-blur,0px)] border-border md:flex ltr:border-r rtl:border-l">
         <div className="flex h-14 items-center gap-2 px-5">
           {brand.logo ? (
@@ -110,26 +120,33 @@ export function AppShell({
         </button>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0">
+        {/* Header */}
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/70 px-5 backdrop-blur-xl">
           <h1 className="text-[13px] font-medium tracking-tight">{title}</h1>
-          <div className="flex items-center gap-2">
-            {action}
-            <div className="flex items-center gap-1 md:hidden">
-              {nav.map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className="rounded-md p-1.5 text-muted-foreground hover:text-foreground"
-                >
-                  <item.icon className="size-4" strokeWidth={1.75} />
-                </Link>
-              ))}
-            </div>
-          </div>
+          <div className="flex items-center gap-2">{action}</div>
         </header>
+
+        {/* Main content */}
         <main className="flex-1 p-4 md:p-7">{children}</main>
       </div>
+
+      {/* Mobile bottom tab bar */}
+      <nav className="mobile-tab-bar md:hidden">
+        {mobileNav.map((item) => {
+          const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={cn("mobile-tab-item", active && "active")}
+            >
+              <item.icon strokeWidth={active ? 2.5 : 1.75} />
+              <span>{t(item.key)}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }
