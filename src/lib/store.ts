@@ -182,18 +182,25 @@ export const useApp = create<State>()((set, get) => {
         set({ syncError: result.error });
         return;
       }
-      // Always overwrite local data with the latest remote state.
-      setAndPersist({
-        entities: result.data.entities,
-        vaults: result.data.vaults,
-        transactions: result.data.transactions,
-      });
-      if (result.settings) {
+      // Only overwrite local if remote actually has data.
+      // This prevents wiping local data when Supabase is empty or broken.
+      const remoteHasData =
+        result.data.entities.length > 0 ||
+        result.data.vaults.length > 0 ||
+        result.data.transactions.length > 0;
+      if (remoteHasData) {
         setAndPersist({
-          lang: result.settings.lang as Lang,
-          theme: result.settings.theme as ThemeMode,
-          brand: result.settings.brand,
+          entities: result.data.entities,
+          vaults: result.data.vaults,
+          transactions: result.data.transactions,
         });
+        if (result.settings) {
+          setAndPersist({
+            lang: result.settings.lang as Lang,
+            theme: result.settings.theme as ThemeMode,
+            brand: result.settings.brand,
+          });
+        }
       }
       set({ syncError: null });
     },
