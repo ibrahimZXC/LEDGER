@@ -93,8 +93,28 @@ grant select, insert, update, delete on public.transactions to anon, authenticat
 grant select, insert, update, delete on public.settings     to anon, authenticated;
 
 -- ============================================================================
--- Remove auth columns if they exist (app is shared, no per-user data)
+-- Remove auth policies/columns if they exist (app is shared, no per-user data)
 -- ============================================================================
+
+drop policy if exists "entities_select_own" on public.entities;
+drop policy if exists "entities_insert_own" on public.entities;
+drop policy if exists "entities_update_own" on public.entities;
+drop policy if exists "entities_delete_own" on public.entities;
+
+drop policy if exists "vaults_select_own" on public.vaults;
+drop policy if exists "vaults_insert_own" on public.vaults;
+drop policy if exists "vaults_update_own" on public.vaults;
+drop policy if exists "vaults_delete_own" on public.vaults;
+
+drop policy if exists "transactions_select_own" on public.transactions;
+drop policy if exists "transactions_insert_own" on public.transactions;
+drop policy if exists "transactions_update_own" on public.transactions;
+drop policy if exists "transactions_delete_own" on public.transactions;
+
+drop policy if exists "settings_select_own" on public.settings;
+drop policy if exists "settings_insert_own" on public.settings;
+drop policy if exists "settings_update_own" on public.settings;
+drop policy if exists "settings_delete_own" on public.settings;
 
 alter table public.entities drop column if exists user_id;
 alter table public.vaults drop column if exists user_id;
