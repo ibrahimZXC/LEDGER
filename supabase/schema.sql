@@ -93,8 +93,16 @@ grant select, insert, update, delete on public.transactions to anon, authenticat
 grant select, insert, update, delete on public.settings     to anon, authenticated;
 
 -- ============================================================================
--- Realtime
+-- Remove auth columns if they exist (app is shared, no per-user data)
 -- ============================================================================
+
+alter table public.entities drop column if exists user_id;
+alter table public.vaults drop column if exists user_id;
+alter table public.transactions drop column if exists user_id;
+alter table public.settings drop column if exists user_id;
+
+-- ============================================================================
+-- Realtime
 
 -- Enable realtime for cross-device sync (required for live updates).
 -- Uses a DO block that checks both table existence AND publication membership
