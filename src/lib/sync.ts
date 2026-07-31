@@ -121,24 +121,20 @@ export async function loadAllFromSupabase(): Promise<{
   settings: { lang: string; theme: string; brand: Brand } | null;
   error?: string | null;
 } | null> {
-  const [entitiesRes, vaultsRes, transactionsRes, settingsRes] = await Promise.all([
+  // Load main data tables — these are the critical ones
+  const [entitiesRes, vaultsRes, transactionsRes] = await Promise.all([
     supabase.from("entities").select("*"),
     supabase.from("vaults").select("*"),
     supabase.from("transactions").select("*"),
-    supabase.from("settings").select("*").eq("id", "default").maybeSingle(),
   ]);
 
-  // If any table query failed (e.g. tables don't exist), return the error message
-  const error =
-    entitiesRes.error?.message ||
-    vaultsRes.error?.message ||
-    transactionsRes.error?.message ||
-    settingsRes.error?.message ||
-    null;
+  // If main tables failed, that's a real error
+  const mainError =
+    entitiesRes.error?.message || vaultsRes.error?.message || transactionsRes.error?.message;
 
-  if (error) {
-    console.error("[sync] load error:", error);
-    return { data: { entities: [], vaults: [], transactions: [] }, settings: null, error };
+  if (mainError) {
+    console.error("[sync] load error:", mainError);
+    return { data: { entities: [], vaults: [], transactions: [] }, settings: null, error: mainError };
   }
 
   const data: AppData = {
@@ -147,14 +143,25 @@ export async function loadAllFromSupabase(): Promise<{
     transactions: (transactionsRes.data as TransactionRow[] | null)?.map(rowToTransaction) ?? [],
   };
 
-  const settingsRow = settingsRes.data as SettingsRow | null;
-  const settings = settingsRow
-    ? {
+  // Settings is non-critical — if it fails, just skip it (don't block the whole load)
+  let settings: { lang: string; theme: string; brand: Brand } | null = null;
+  try {
+    const settingsRes = await supabase
+      .from("settings")
+      .select("*")
+      .eq("id", "default")
+      .maybeSingle();
+    if (!settingsRes.error && settingsRes.data) {
+      const settingsRow = settingsRes.data as SettingsRow;
+      settings = {
         lang: settingsRow.lang,
         theme: settingsRow.theme,
         brand: { name: settingsRow.brand_name, logo: settingsRow.brand_logo },
-      }
-    : null;
+      };
+    }
+  } catch {
+    // Settings table might have wrong schema — ignore, not critical
+  }
 
   return { data, settings, error: null };
 }
