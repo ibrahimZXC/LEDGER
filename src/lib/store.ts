@@ -109,7 +109,6 @@ function persistState(state: State): void {
 
 export const useApp = create<State>()((set, get) => {
   // Wrap set() to auto-persist to localStorage after every state change.
-  // We use a shallow merge approach (no replace) so persistence is simpler.
   const setAndPersist = (partial: Partial<State>) => {
     const next = { ...get(), ...partial } as State;
     persistState(next);
@@ -157,8 +156,6 @@ export const useApp = create<State>()((set, get) => {
       } else {
         // Cloud appears empty — only seed if we have confirmed local data AND
         // this is a genuine first-time setup (not a silent RLS/permission failure).
-        // A misconfigured Supabase policy can cause SELECT to return [] without an error,
-        // which would make the app think the cloud is empty and wipe it with local data.
         const s = get();
         const localHasData =
           s.entities.length > 0 || s.vaults.length > 0 || s.transactions.length > 0;
@@ -201,7 +198,6 @@ export const useApp = create<State>()((set, get) => {
         return;
       }
       // Only overwrite local if remote actually has data.
-      // This prevents wiping local data when Supabase is empty or broken.
       const remoteHasData =
         result.data.entities.length > 0 ||
         result.data.vaults.length > 0 ||
@@ -248,59 +244,99 @@ export const useApp = create<State>()((set, get) => {
     addEntity: (e) => {
       const entity: Entity = { ...e, id: uid(), createdAt: new Date().toISOString() };
       setAndPersist({ entities: [...get().entities, entity] });
-      if (syncOn()) syncEntityInsert(entity);
+      if (syncOn()) {
+        syncEntityInsert(entity).then((err) => {
+          if (err) set({ syncError: "Failed to save to cloud: " + err });
+        });
+      }
       return entity;
     },
     updateEntity: (id, patch) => {
       setAndPersist({
         entities: get().entities.map((e) => (e.id === id ? { ...e, ...patch } : e)),
       });
-      if (syncOn()) syncEntityUpdate(id, patch);
+      if (syncOn()) {
+        syncEntityUpdate(id, patch).then((err) => {
+          if (err) set({ syncError: "Failed to update cloud: " + err });
+        });
+      }
     },
     deleteEntity: (id) => {
       setAndPersist({
         entities: get().entities.filter((e) => e.id !== id),
         transactions: get().transactions.filter((t) => t.entityId !== id),
       });
-      if (syncOn()) syncEntityDelete(id);
+      if (syncOn()) {
+        syncEntityDelete(id).then((err) => {
+          if (err) set({ syncError: "Failed to delete from cloud: " + err });
+        });
+      }
     },
 
     addVault: (name, balance = 0) => {
       const vault: Vault = { id: uid(), name, balance };
       setAndPersist({ vaults: [...get().vaults, vault] });
-      if (syncOn()) syncVaultInsert(vault);
+      if (syncOn()) {
+        syncVaultInsert(vault).then((err) => {
+          if (err) set({ syncError: "Failed to save vault to cloud: " + err });
+        });
+      }
       return vault;
     },
     updateVault: (id, patch) => {
       setAndPersist({
         vaults: get().vaults.map((v) => (v.id === id ? { ...v, ...patch } : v)),
       });
-      if (syncOn()) syncVaultUpdate(id, patch);
+      if (syncOn()) {
+        syncVaultUpdate(id, patch).then((err) => {
+          if (err) set({ syncError: "Failed to update vault in cloud: " + err });
+        });
+      }
     },
     deleteVault: (id) => {
       setAndPersist({ vaults: get().vaults.filter((v) => v.id !== id) });
-      if (syncOn()) syncVaultDelete(id);
+      if (syncOn()) {
+        syncVaultDelete(id).then((err) => {
+          if (err) set({ syncError: "Failed to delete vault from cloud: " + err });
+        });
+      }
     },
 
     addTransaction: (t) => {
       const tx: Transaction = { ...t, id: uid() };
       setAndPersist({ transactions: [...get().transactions, tx] });
-      if (syncOn()) syncTransactionInsert(tx);
+      if (syncOn()) {
+        syncTransactionInsert(tx).then((err) => {
+          if (err) set({ syncError: "Failed to save transaction to cloud: " + err });
+        });
+      }
       return tx;
     },
     updateTransaction: (id, patch) => {
       setAndPersist({
         transactions: get().transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
       });
-      if (syncOn()) syncTransactionUpdate(id, patch);
+      if (syncOn()) {
+        syncTransactionUpdate(id, patch).then((err) => {
+          if (err) set({ syncError: "Failed to update transaction in cloud: " + err });
+        });
+      }
     },
     deleteTransaction: (id) => {
       setAndPersist({ transactions: get().transactions.filter((t) => t.id !== id) });
-      if (syncOn()) syncTransactionDelete(id);
+      if (syncOn()) {
+        syncTransactionDelete(id).then((err) => {
+          if (err) set({ syncError: "Failed to delete transaction from cloud: " + err });
+        });
+      }
     },
     deleteTransactions: (ids) => {
       setAndPersist({ transactions: get().transactions.filter((t) => !ids.includes(t.id)) });
-      if (syncOn()) syncTransactionsDelete(ids);
+      if (syncOn()) {
+        syncTransactionsDelete(ids).then((err) => {
+          if (err) set({ syncError: "Failed to delete transactions from cloud: " + err });
+        });
+      }
     },
 
     replaceAll: (data) => {
