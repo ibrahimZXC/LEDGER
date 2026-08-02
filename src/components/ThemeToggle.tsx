@@ -1,8 +1,14 @@
-import { Palette } from "lucide-react";
+import { Palette, Check } from "lucide-react";
 import { useApp } from "@/lib/store";
 import { useI18n } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { THEME_MODES } from "@/types";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const SWATCH: Record<string, string> = {
   light: "#ffffff",
@@ -19,28 +25,38 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const setTheme = useApp((s) => s.setTheme);
 
   return (
-    <div className={cn("flex items-center gap-2", compact ? "" : "panel px-3 py-2")}>
-      {!compact && (
-        <span className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className={cn(
+            "flex items-center gap-1.5 rounded-md text-[11px] uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground",
+            compact ? "px-1.5 py-1" : "px-3 py-2 panel",
+          )}
+        >
           <Palette className="size-3.5" strokeWidth={1.75} />
-          {t("themeMode")}
-        </span>
-      )}
-      <div className="flex items-center gap-1">
-        {THEME_MODES.map((mode) => (
-          <button
-            key={mode}
-            title={t(`mode_${mode}`)}
-            aria-label={t(`mode_${mode}`)}
-            onClick={() => setTheme(mode)}
-            className={cn(
-              "size-5 rounded-full border border-border transition-transform hover:scale-110",
-              theme === mode && "ring-2 ring-foreground/70 ring-offset-1 ring-offset-background",
-            )}
-            style={{ background: SWATCH[mode] }}
+          {!compact && <span>{t("themeMode")}</span>}
+          <span
+            className="size-4 rounded-full border border-border"
+            style={{ background: SWATCH[theme] }}
           />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        {THEME_MODES.map((mode) => (
+          <DropdownMenuItem
+            key={mode}
+            onClick={() => setTheme(mode)}
+            className="flex items-center gap-2.5"
+          >
+            <span
+              className="size-4 rounded-full border border-border"
+              style={{ background: SWATCH[mode] }}
+            />
+            <span className="flex-1 text-xs">{t(`mode_${mode}`)}</span>
+            {theme === mode && <Check className="size-3.5" strokeWidth={2} />}
+          </DropdownMenuItem>
         ))}
-      </div>
-    </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

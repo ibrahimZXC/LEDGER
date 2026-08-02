@@ -431,7 +431,6 @@ function Panel({
 
 function buildFlow(transactions: ReturnType<typeof useApp.getState>["transactions"]) {
   const sorted = transactions
-    .filter((tx) => tx.vaultId)
     .slice()
     .sort((a, b) => a.date.localeCompare(b.date));
   const byDate = new Map<string, number>();
@@ -439,6 +438,9 @@ function buildFlow(transactions: ReturnType<typeof useApp.getState>["transaction
   for (const tx of sorted) {
     running += vaultDelta(tx);
     byDate.set(tx.date, running);
+  }
+  if (byDate.size === 0) {
+    return [{ date: "—", cash: 0 }];
   }
   return Array.from(byDate, ([date, cash]) => ({ date: date.slice(5), cash }));
 }

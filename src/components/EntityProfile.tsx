@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { Pencil, Trash2, Plus, Upload, RotateCcw } from "lucide-react";
+import { useMemo, useRef, useState, useEffect } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { Pencil, Trash2, Plus, Upload, RotateCcw, UserX, FileX } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { TransactionDialog } from "@/components/dialogs";
 import { CsvImportDialog } from "@/components/CsvImport";
@@ -13,6 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useApp } from "@/lib/store";
 import { formatDate, formatMoney, useI18n } from "@/lib/format";
 import { buildLedger } from "@/lib/ledger";
@@ -20,13 +27,20 @@ import { statementSpec } from "@/lib/exporters";
 import { cn } from "@/lib/utils";
 import { TRANSACTION_TYPES, type EntityType } from "@/types";
 
+const PAGE_SIZE = 20;
+
 export function EntityProfile({ id, type }: { id: string; type: EntityType }) {
   const { t, lang } = useI18n();
-  const { entities, transactions, vaults, deleteTransaction } = useApp();
+  const navigate = useNavigate();
+  const { entities, transactions, vaults, deleteTransaction, deleteEntity, deleteTransactions } =
+    useApp();
   const entity = entities.find((e) => e.id === id && e.type === type);
   const [newTx, setNewTx] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [confirmDeleteEntity, setConfirmDeleteEntity] = useState(false);
+  const [confirmDeleteAllTx, setConfirmDeleteAllTx] = useState(false);
 
   // Filter state
   const [filterType, setFilterType] = useState("all");
@@ -47,6 +61,28 @@ export function EntityProfile({ id, type }: { id: string; type: EntityType }) {
     });
   }, [fullLedger, filterType, filterFrom, filterTo]);
 
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [filterType, filterFrom, filterTo]);
+
+  // Infinite scroll: load more when scrolling near the bottom
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && visibleCount < ledger.length) {
+          setVisibleCount((c) => Math.min(c + PAGE_SIZE, ledger.length));
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [visibleCount, ledger.length]);
+
   if (!entity) {
     return (
       <AppShell title="—">
@@ -56,6 +92,7 @@ export function EntityProfile({ id, type }: { id: string; type: EntityType }) {
   }
 
   const balance = fullLedger.length ? fullLedger[fullLedger.length - 1].running : entity.openingBalance;
+  const visibleLedger = ledger.slice(0, visibleCount);
 
   return (
     <AppShell
@@ -72,6 +109,29 @@ export function EntityProfile({ id, type }: { id: string; type: EntityType }) {
             {t("importCsv")}
           </Button>
           <ExportMenu spec={() => statementSpec(entity, ledger, lang, t)} />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                <Trash2 className="size-3.5" strokeWidth={1.75} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => setConfirmDeleteAllTx(true)}
+                disabled={ledger.length === 0}
+              >
+                <FileX className="size-3.5 ltr:mr-2 rtl:ml-2" strokeWidth={1.75} />
+                {lang === "ar" ? "حذف كل المعاملات" : "Delete all transactions"}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setConfirmDeleteEntity(true)}
+                className="text-destructive"
+              >
+                <UserX className="size-3.5 ltr:mr-2 rtl:ml-2" strokeWidth={1.75} />
+                {lang === "ar" ? "حذف العميل" : "Delete entity"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       }
     >
@@ -165,7 +225,7 @@ export function EntityProfile({ id, type }: { id: string; type: EntityType }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {ledger.map(({ tx, running }) => (
+                  {visibleLedger.map(({ tx, running }) => (
                     <tr
                       key={tx.id}
                       className="border-b border-border last:border-0 hover:bg-accent/40"
@@ -209,6 +269,15 @@ export function EntityProfile({ id, type }: { id: string; type: EntityType }) {
                   ))}
                 </tbody>
               </table>
+              {visibleCount < ledger.length && (
+                <div ref={sentinelRef} className="py-3 text-center">
+                  <span className="text-[11px] text-muted-foreground">
+                    {lang === "ar"
+                      ? `تحميل المزيد... (${visibleCount} / ${ledger.length})`
+                      : `Loading more... (${visibleCount} / ${ledger.length})`}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </section>
@@ -228,7 +297,79 @@ export function EntityProfile({ id, type }: { id: string; type: EntityType }) {
       {importing && (
         <CsvImportDialog open onOpenChange={() => setImporting(false)} entity={entity} />
       )}
+
+      {/* Delete entity confirmation */}
+      {confirmDeleteEntity && (
+        <ConfirmDialog
+          title={lang === "ar" ? "حذف العميل" : "Delete entity"}
+          message={
+            lang === "ar"
+              ? "سيتم حذف هذا العميل وجميع معاملاته نهائياً. هل أنت متأكد؟"
+              : "This will permanently delete this entity and all its transactions. Are you sure?"
+          }
+          confirmLabel={lang === "ar" ? "حذف" : "Delete"}
+          onConfirm={() => {
+            deleteEntity(entity.id);
+            navigate({ to: type === "customer" ? "/customers" : "/suppliers" });
+          }}
+          onCancel={() => setConfirmDeleteEntity(false)}
+          lang={lang}
+        />
+      )}
+
+      {/* Delete all transactions confirmation */}
+      {confirmDeleteAllTx && (
+        <ConfirmDialog
+          title={lang === "ar" ? "حذف كل المعاملات" : "Delete all transactions"}
+          message={
+            lang === "ar"
+              ? "سيتم حذف جميع المعاملات لهذا العميل. هل أنت متأكد؟"
+              : "This will delete all transactions for this entity. Are you sure?"
+          }
+          confirmLabel={lang === "ar" ? "حذف" : "Delete"}
+          onConfirm={() => {
+            const txIds = transactions.filter((tx) => tx.entityId === entity.id).map((tx) => tx.id);
+            deleteTransactions(txIds);
+            setConfirmDeleteAllTx(false);
+          }}
+          onCancel={() => setConfirmDeleteAllTx(false)}
+          lang={lang}
+        />
+      )}
     </AppShell>
+  );
+}
+
+function ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  lang,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  lang: string;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-sm rounded-lg border border-border bg-popover p-5 shadow-lg">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <p className="mt-2 text-xs text-muted-foreground">{message}</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button size="sm" variant="outline" onClick={onCancel}>
+            {lang === "ar" ? "إلغاء" : "Cancel"}
+          </Button>
+          <Button size="sm" variant="destructive" onClick={onConfirm}>
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
