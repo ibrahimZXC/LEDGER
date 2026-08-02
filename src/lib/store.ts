@@ -57,6 +57,16 @@ interface State extends AppData {
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
+/**
+ * Merge two arrays by ID, preferring remote items for conflicts
+ * but preserving local items that don't exist in remote (unsynced).
+ * This prevents data loss when a refresh fires before async syncs complete.
+ */
+function mergeById<T extends { id: string }>(local: T[], remote: T[]): T[] {
+  const remoteIds = new Set(remote.map((item) => item.id));
+  return [...remote, ...local.filter((item) => !remoteIds.has(item.id))];
+}
+
 /** True when Supabase is configured and sync should fire. */
 const syncOn = () => isSupabaseConfigured;
 
@@ -140,11 +150,12 @@ export const useApp = create<State>()((set, get) => {
         result.data.vaults.length > 0 ||
         result.data.transactions.length > 0;
       if (remoteHasData) {
-        // Cloud has data → pull it to local
+        // Cloud has data → merge with local (preserves unsynced local items)
+        const s = get();
         setAndPersist({
-          entities: result.data.entities,
-          vaults: result.data.vaults,
-          transactions: result.data.transactions,
+          entities: mergeById(s.entities, result.data.entities),
+          vaults: mergeById(s.vaults, result.data.vaults),
+          transactions: mergeById(s.transactions, result.data.transactions),
         });
         if (result.settings) {
           setAndPersist({
@@ -179,7 +190,10 @@ export const useApp = create<State>()((set, get) => {
             }
           } else if (countError) {
             // Count failed → likely a permissions issue; skip seed to protect cloud data
-            console.warn("[store] Could not verify remote state, skipping auto-seed:", countError.message);
+            console.warn(
+              "[store] Could not verify remote state, skipping auto-seed:",
+              countError.message,
+            );
             set({ syncError: "Could not connect to Supabase: " + countError.message });
           }
           // If count > 0 but select returned [] → RLS is filtering rows (wrong config),
@@ -197,16 +211,17 @@ export const useApp = create<State>()((set, get) => {
         set({ syncError: result.error });
         return;
       }
-      // Only overwrite local if remote actually has data.
+      // Merge remote with local — preserves unsynced local items (e.g. during bulk import)
       const remoteHasData =
         result.data.entities.length > 0 ||
         result.data.vaults.length > 0 ||
         result.data.transactions.length > 0;
       if (remoteHasData) {
+        const s = get();
         setAndPersist({
-          entities: result.data.entities,
-          vaults: result.data.vaults,
-          transactions: result.data.transactions,
+          entities: mergeById(s.entities, result.data.entities),
+          vaults: mergeById(s.vaults, result.data.vaults),
+          transactions: mergeById(s.transactions, result.data.transactions),
         });
         if (result.settings) {
           setAndPersist({
